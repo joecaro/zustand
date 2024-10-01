@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { create, type StateCreator } from 'zustand'
+import { type StateCreator, create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { replacer, reviver } from './test-utils'
 
@@ -773,8 +773,6 @@ describe('persist middleware with sync configuration', () => {
         ) => void
 
         api.setState = (state: any, replace?: boolean, nameOrAction?: any) => {
-          console.log('setState', state, replace, nameOrAction)
-
           setStateSpy(state, replace, nameOrAction)
           return originalSetState(state, replace, nameOrAction)
         }
