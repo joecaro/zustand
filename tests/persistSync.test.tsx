@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { create } from 'zustand'
+import { create, type StateCreator } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { replacer, reviver } from './test-utils'
 
@@ -759,5 +759,44 @@ describe('persist middleware with sync configuration', () => {
 
     expect(useBoundStore.persist.hasHydrated()).toBe(true)
     expect(setItem).toBeCalledTimes(0)
+  })
+
+  it('passes the nameOrAction to setState correctly', () => {
+    const setStateSpy = vi.fn()
+
+    function spyMiddleware<T>(config: StateCreator<T, any, any, any>) {
+      return (set: any, get: any, api: any) => {
+        const originalSetState = api.setState as (
+          state: T | Partial<T> | ((state: T) => T | Partial<T>),
+          replace?: boolean,
+          nameOrAction?: any,
+        ) => void
+
+        api.setState = (state: any, replace?: boolean, nameOrAction?: any) => {
+          console.log('setState', state, replace, nameOrAction)
+
+          setStateSpy(state, replace, nameOrAction)
+          return originalSetState(state, replace, nameOrAction)
+        }
+
+        // Return the original config to set up the store
+        return config(set, get, api)
+      }
+    }
+
+    const config = {
+      name: 'test-storage',
+    }
+
+    const useBoundStore = create(
+      spyMiddleware(persist(() => ({ count: 0 }), config)),
+    )
+
+    const ACTION = { type: 'UPDATE_COUNT' }
+
+    // @ts-expect-error - wrapping persist with spyMiddleware causes the type to be lost
+    useBoundStore.setState({ count: 42 }, false, ACTION)
+
+    expect(setStateSpy).toBeCalledWith({ count: 42 }, false, ACTION)
   })
 })

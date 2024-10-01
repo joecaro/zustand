@@ -211,10 +211,9 @@ const persistImpl: PersistImpl = (config, baseOptions) => (set, get, api) => {
     })
   }
 
-  const savedSetState = api.setState
-
-  api.setState = (state, replace) => {
-    savedSetState(state, replace as any)
+  const savedSetState = api.setState as WithPersistState<typeof api>['setState']
+  api.setState = (state, replace?, nameOrAction?: Action) => {
+    savedSetState(state, replace as any, nameOrAction)
     void setItem()
   }
 
@@ -365,10 +364,50 @@ declare module '../vanilla' {
   }
 }
 
+type Action =
+  | string
+  | {
+      type: string
+      [x: string | number | symbol]: unknown
+    }
+
+type Cast<T, U> = T extends U ? T : U
 type Write<T, U> = Omit<T, keyof U> & U
 
-type WithPersist<S, A> = S extends { getState: () => infer T }
-  ? Write<S, StorePersist<T, A>>
+type TakeTwo<T> = T extends { length: 0 }
+  ? [undefined, undefined]
+  : T extends { length: 1 }
+    ? [...a0: Cast<T, unknown[]>, a1: undefined]
+    : T extends { length: 0 | 1 }
+      ? [...a0: Cast<T, unknown[]>, a1: undefined]
+      : T extends { length: 2 }
+        ? T
+        : T extends { length: 1 | 2 }
+          ? T
+          : T extends { length: 0 | 1 | 2 }
+            ? T
+            : T extends [infer A0, infer A1, ...unknown[]]
+              ? [A0, A1]
+              : T extends [infer A0, (infer A1)?, ...unknown[]]
+                ? [A0, A1?]
+                : T extends [(infer A0)?, (infer A1)?, ...unknown[]]
+                  ? [A0?, A1?]
+                  : never
+
+type WithPersistState<S> = S extends {
+  setState: {
+    (...a: infer Sa1): infer Sr1
+    (...a: infer Sa2): infer Sr2
+  }
+}
+  ? {
+      setState(...a: [...a: TakeTwo<Sa1>, action?: Action]): Sr1
+      setState(...a: [...a: TakeTwo<Sa2>, action?: Action]): Sr2
+    }
+  : never
+
+type WithPersist<S, A> = S extends { setState: (...args: any[]) => any }
+  ? Write<S, WithPersistState<S> & StorePersist<S, A>>
   : never
 
 type PersistImpl = <T>(
